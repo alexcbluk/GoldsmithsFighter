@@ -39,6 +39,8 @@ Reaction:
 > Body Knock (Top)
 > Body Knock (Medium)
 > Body Fall
+> Victory Pose
+> Losing Pose
 
 Artemis (Actor):
 > Practice the movements
