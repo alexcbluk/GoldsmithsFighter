@@ -10,8 +10,6 @@ Motion Capture Idea:
 
 Our Main Idea: Mimic of Street Fighter
 
-
-
 Idle Stance:
 >Stunt
 >Dash Forward
@@ -54,8 +52,8 @@ Alex:
 > Health System
 > Collision
 
-
-
+Tasks needs doing:
+> Sound Effect. 
 
 
 
