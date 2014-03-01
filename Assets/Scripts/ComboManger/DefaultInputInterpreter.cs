@@ -18,6 +18,16 @@ public class DefaultInputInterpreter : IInputInterpreter<string>
 	{
 		return BUTTONS;
 	}
+
+	protected virtual string GetHorizontalAxisLabel()
+	{
+		return "Horizontal";
+	}
+	
+	protected virtual string GetVerticalAxisLabel()
+	{
+		return "Vertical";
+	}
 	
 	private static InputFrame<string> Encapsulate(string str)
 	{
@@ -34,7 +44,7 @@ public class DefaultInputInterpreter : IInputInterpreter<string>
 			}
 		}
 		
-		float axis = Input.GetAxisRaw("Horizontal");
+		float axis = Input.GetAxisRaw(GetHorizontalAxisLabel());
 		if (axis >= 1.0f)
 		{
 			return Encapsulate("Right");
@@ -44,7 +54,7 @@ public class DefaultInputInterpreter : IInputInterpreter<string>
 			return Encapsulate("Left");
 		}
 		
-		axis = Input.GetAxisRaw("Vertical");
+		axis = Input.GetAxisRaw(GetVerticalAxisLabel());
 		if (axis >= 1.0f)
 		{
 			return Encapsulate("Up");
