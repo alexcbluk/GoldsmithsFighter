@@ -105,7 +105,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: da54082596f862d4fbeae181a50798ae, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxKeyComboLength: 4
   timeBetweenKeyPress: .200000003
 --- !u!81 &1046413001
 AudioListener:

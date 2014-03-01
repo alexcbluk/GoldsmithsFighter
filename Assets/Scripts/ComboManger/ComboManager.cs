@@ -1,7 +1,35 @@
 ﻿using UnityEngine;
 
 using System;
+using System.Linq;
 using System.Collections.Generic;
+
+public class InputFrame<T> : IEquatable<InputFrame<T> >
+{
+	public static InputFrame<T> Empty = new InputFrame<T>(default(T));
+
+	public InputFrame(T keyPress)
+	{
+		Input = keyPress;
+	}
+
+	public T Input { get; set; }
+
+	public bool Equals(InputFrame<T> rhs)
+	{
+		if (this.Input == null && rhs.Input == null)
+		{
+			return true;
+		}
+
+		return this.Input != null && this.Input.Equals(rhs.Input);
+	}
+
+	public static bool IsEmpty(InputFrame<T> rhs)
+	{
+		return rhs != null && Empty.Equals(rhs);
+	}
+}
 
 /**
  * Interprets the input as a series of T objects 
@@ -12,7 +40,7 @@ public interface IInputInterpreter<T>
 	 * Senses input and returns a series of respective T instances
 	 * representing the input
 	 **/
-	T[] Poll();
+	InputFrame<T> Poll();
 }
 
 /**
@@ -23,11 +51,8 @@ public class NullInputInterpreter<T> : IInputInterpreter<T>
 	/**
 	 * Returns a null representation as the sensed input sequence
 	 **/
-	public T[] Poll()
+	public InputFrame<T> Poll()
 	{
-		// Returns null for reference types or default values for value types
-		//return GenerateEmptyFrame<T>();
-
 		return null;
 	}
 }
@@ -67,59 +92,82 @@ public class DelayInputInterpreter<T> : IInputInterpreter<T>
 		set { _impl = (value == null ? new NullInputInterpreter<T>() : value); }
 	}
 
-	private bool IsEmptyFrame(T[] inputString)
+	public InputFrame<T> Poll()
 	{
-		return inputString != null && (inputString.Length == 1 && inputString[0] == null);
-	}
+		InputFrame<T> input = _impl.Poll();
 
-	public T[] Poll()
-	{
-		T[] input = _impl.Poll();
-
-		if (IsEmptyFrame(input))
+		if (input != null)
 		{
-			if ((_accumulator -= Time.deltaTime) <= 0.0f)
+			if (InputFrame<T>.IsEmpty(input))
 			{
-				_accumulator = _delay;
-			
-				// Empty input frame
-				return input;
-			}
+				if ((_accumulator -= Time.deltaTime) <= 0.0f)
+				{
+					_accumulator = _delay;
+				
+					// Empty input frame
+					return input;
+				}
 
-			// Assume no key presses occured
-			input = null;
-		}
-		else
-		{
-			// Reset timer
-			_accumulator = _delay;
+				// Assume no key presses occured
+				input = null;
+			}
+			else
+			{
+				// Reset timer
+				_accumulator = _delay;
+			}
 		}
 
 		return input;
 	}
 }
 
-public class KeyPress<T>
+public class KeyPress<T> : IEquatable<KeyPress<T> >
 {
-	KeyPress() :
+	public KeyPress() :
 		this(default(T))
 	{
 	}
-		
-	KeyPress(T key)
+	
+	public KeyPress(T key) :
+		this(key, -1.0f)
 	{
-		Key = key;
-		Duration = 0.0f;
+	}
+	
+	public KeyPress(T key, float minDuration) :
+		this(key, minDuration, -1.0f)
+	{
 	}
 
-	public float Duration { get; set; }
+	public KeyPress(T key, float minDuration, float maxDuration)
+	{
+		Key = key;
+		MinDuration = minDuration;
+		MaxDuration = maxDuration;
+	}
+	
 	public T Key { get; set; }
+	public float MinDuration { get; set; }
+	public float MaxDuration { get; set; }
+	
+	public bool Equals(KeyPress<T> rhs)
+	{
+		return Key.Equals(rhs.Key) && MinDuration.Equals(rhs.MinDuration) && MaxDuration.Equals(rhs.MaxDuration);
+	}
+}
+
+public interface ComboManager<T>
+{
+	void On(T[] keyCombination, Action<T[]> action);
+	bool Off(T[] keyCombination, Action<T[]> action);
+
+	T[] Poll();
 }
 
 /**
  * Reference: http://wiki.unity3d.com/index.php?title=KeyCombo
  **/
-public class ComboManager<T> 
+public class DefaultComboManager<T> : ComboManager<T>
 {
 	// The function type related for action events
 	//public delegate void Action();
@@ -137,17 +185,17 @@ public class ComboManager<T>
 	// The associated input interpreter
 	private IInputInterpreter<T> _inputInterpreter = null;
 
-	public ComboManager() :
+	public DefaultComboManager() :
 		this(5, new NullInputInterpreter<T>())
 	{
 	}
 
-	public ComboManager(int windowSize) :
+	public DefaultComboManager(int windowSize) :
 		this(windowSize, new NullInputInterpreter<T>())
 	{
 	}
 
-	public ComboManager(int windowSize, IInputInterpreter<T> interpreter)
+	public DefaultComboManager(int windowSize, IInputInterpreter<T> interpreter)
 	{
 		_keyComboRegister = new Dictionary<T[], List<Action<T[]> > >();
 
@@ -282,16 +330,13 @@ public class ComboManager<T>
 	 **/
 	public T[] Poll()
 	{
-		T[] inputs = _inputInterpreter.Poll();
+		InputFrame<T> input = _inputInterpreter.Poll();
 
 		// If the inputs reference is null, represent it as
 		// no key presses and not an empty input frame
-		if (inputs != null)
+		if (input != null)
 		{
-			foreach (T input in inputs)
-			{
-				_keyWindow.Add(input);
-			}
+			_keyWindow.Add(input.Input);
 		}
 
 		while (_keyWindow.Count > _windowSize) 
@@ -318,130 +363,4 @@ public class ComboManager<T>
 		return combo;
 	}
 
-}
-
-/**
- *  Default implementation for an IInputInterpreter using Input.GetButton()/Input.GetAxis()
- **/
-public class DefaultInputInterpreter : IInputInterpreter<string>
-{
-	protected static string[] EMPTY_FRAME = Encapsulate(null);
-	
-	private static string[] BUTTONS = {
-		"Fire1",
-		"Fire2",
-		"Fire3",
-		"Jump"
-	};
-	
-	private float horizontal = 0.0f;
-	private float vertical = 0.0f;
-	
-	protected virtual string[] GetButtonIDs()
-	{
-		return BUTTONS;
-	}
-	
-	private static string[] Encapsulate(string str)
-	{
-		return new string[] { str };
-	}
-	
-	public virtual string[] Poll()
-	{
-		float axis = Input.GetAxisRaw("Horizontal");
-		if (axis != horizontal)
-		{
-			horizontal = axis;
-			
-			if (horizontal >= 1.0f)
-			{
-				return Encapsulate("Right");
-			}
-			else if (horizontal <= -1.0f)
-			{
-				return Encapsulate("Left");
-			}
-		}
-		
-		axis = Input.GetAxisRaw("Vertical");
-		if (axis != vertical)
-		{
-			vertical = axis;
-
-			if (vertical >= 1.0f)
-			{
-				return Encapsulate("Up");
-			}
-			else if (vertical <= -1.0f)
-			{
-				return Encapsulate("Down");
-			}
-		}
-		
-		foreach (string button in GetButtonIDs())
-		{
-			if (Input.GetButtonDown(button))
-			{
-				return Encapsulate(button);
-			}
-		}
-		
-		// Empty input frame
-		return EMPTY_FRAME;
-	}
-}
-
-/**
- *  Default ComboManger for string types 
- **/
-public class KeyComboManager : ComboManager<string>
-{
-	public KeyComboManager() :
-		this(0.2f)
-	{
-	}
-	
-	public KeyComboManager(float keyDelay) :
-		this(keyDelay, 5)
-	{
-	}
-
-	public KeyComboManager(float keyDelay, int windowSize) :
-		this(keyDelay, windowSize, new DefaultInputInterpreter())
-	{
-	}
-	
-	public KeyComboManager(float keyDelay, int windowSize, IInputInterpreter<string> interpreter) :
-		// Always encapsulate the interpreter within a DelayInputInterpreter wrapper
-		base(windowSize, new DelayInputInterpreter<string>(interpreter))
-	{
-		Delay = keyDelay;
-	}
-
-	public override IInputInterpreter<string> InputInterpreter
-	{
-		get
-		{
-			return ((DelayInputInterpreter<string>) base.InputInterpreter).Implementation;
-		}
-
-		set
-		{
-			((DelayInputInterpreter<string>) base.InputInterpreter).Implementation = value;
-		}
-	}
-
-	public float Delay
-	{
-		get
-		{
-			return ((DelayInputInterpreter<string>) base.InputInterpreter).Delay;
-		}
-
-		set
-		{
-			((DelayInputInterpreter<string>) base.InputInterpreter).Delay = value;
-		}
-	}
 }
