@@ -35,3 +35,9 @@ ExportedObj/
 Icon?
 ehthumbs.db
 Thumbs.db
+
+# =========== #
+# Large Files #
+# =========== #
+Assets/3D Models/Artemis1/wronghands.fbx
+Assets/3D Models/Artemis1/wronghands.fbx.meta
